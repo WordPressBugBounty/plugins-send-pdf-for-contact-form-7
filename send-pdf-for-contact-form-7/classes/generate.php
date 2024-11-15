@@ -16,10 +16,10 @@ defined( 'ABSPATH' )
 
 class WPCF7PDF_generate extends cf7_sendpdf {
 
-    static function wpcf7pdf_create_pdf($id, $data, $nameOfPdf, $referenceOfPdf, $createDirectory, $preview = 0) {
+    static function wpcf7pdf_create_pdf($idForm, $data, $nameOfPdf, $referenceOfPdf, $createDirectory, $preview = 0) {
 
         // nothing's here... do nothing...
-        if (empty($id) || empty($data))
+        if (empty($idForm) || empty($data))
             return;
 
         global $wp_session;
@@ -27,11 +27,11 @@ class WPCF7PDF_generate extends cf7_sendpdf {
         $upload_dir = wp_upload_dir();
         $custom_tmp_path = get_option('wpcf7pdf_path_temp');
 
-        $contact_form = WPCF7_ContactForm::get_instance(esc_html($id));   
+        $contact_form = WPCF7_ContactForm::get_instance(esc_html($idForm));   
 
         // Definition des dates par defaut
-        $dateField = WPCF7PDF_prepare::returndate($id);
-        $timeField = WPCF7PDF_prepare::returntime($id);
+        $dateField = WPCF7PDF_prepare::returndate($idForm);
+        $timeField = WPCF7PDF_prepare::returntime($idForm);
 
         // Definition des marges par defaut
         $marginHeader = 10;
@@ -40,8 +40,10 @@ class WPCF7PDF_generate extends cf7_sendpdf {
         $marginLeft = 15;
         $marginRight = 15;
 
-        // On va chercher les TAGS
-        $meta_values = get_post_meta(esc_html($id), '_wp_cf7pdf', true);
+        // On va chercher les paramètres
+        $meta_values = get_post_meta(esc_html($idForm), '_wp_cf7pdf', true);
+
+        if( $referenceOfPdf=='' && ($preview==1 or $preview==2) ) { $referenceOfPdf = '3F7A8B43EA2F'; }
 
         require WPCF7PDF_DIR . 'mpdf/vendor/autoload.php';
 
@@ -167,7 +169,7 @@ class WPCF7PDF_generate extends cf7_sendpdf {
         $mpdf->autoVietnamese = true;
         $mpdf->autoArabic = true;
         $mpdf->autoLangToFont = true;                    
-        $mpdf->SetTitle(get_the_title(esc_html($id)));
+        $mpdf->SetTitle(get_the_title(esc_html($idForm)));
         $mpdf->SetCreator(get_bloginfo('name'));
         $mpdf->SetDirectionality($setDirectionality);
         $mpdf->ignore_invalid_utf8 = true;
@@ -300,45 +302,95 @@ class WPCF7PDF_generate extends cf7_sendpdf {
         
         // Option for Protect PDF by Password
         if ( isset($meta_values["protect"]) && $meta_values["protect"]=='true') {
-            $pdfPassword = WPCF7PDF_prepare::protect_pdf($id);
+            $pdfPassword = WPCF7PDF_prepare::protect_pdf($idForm);
             $mpdf->SetProtection(array('print','fill-forms'), $pdfPassword, $pdfPassword, 128);             
         } 
 
-        // Si je suis dans l'admin je génère un preview
+        // Si je suis dans l'admin je génère un preview 
         if ( isset($preview) && $preview == 1 ) {
 
-            $mpdf->Output($createDirectory.'/preview-'.esc_html($id).'.pdf', 'F');
+            $mpdf->Output($createDirectory.'/preview-'.esc_html($idForm).'.pdf', 'F');
 
+        // et des preview pour les autres PDF si existant
+        } elseif ( ( isset($preview) && $preview == 2 ) && ( isset($meta_values["number-pdf"]) && $meta_values["number-pdf"]>1 ) ) {
+
+            for ($i = 2; $i <= $meta_values["number-pdf"]; $i++) {
+                if( isset($meta_values['nameaddpdf'.$i]) && $meta_values['nameaddpdf'.$i] != '') {
+                    $mpdf->Output($createDirectory.'/preview-'.sanitize_title($meta_values['nameaddpdf'.$i.'']).'-'.esc_html($idForm).'.pdf', 'F');
+                }
+            }
+
+        // Sinon on génère les PDF
         } else {
 
             $data = wpcf7_mail_replace_tags( wpautop($data) );
-            $mpdf->Output($createDirectory.'/'.$nameOfPdf.'.pdf', 'F');
+            $mpdf->Output($createDirectory.'/'.esc_html($nameOfPdf).'.pdf', 'F');
             
             // Je copy le PDF genere
-            if( file_exists($createDirectory.'/'.$nameOfPdf.'.pdf') ) {
-                copy($createDirectory.'/'.$nameOfPdf.'.pdf', $createDirectory.'/'.$nameOfPdf.'-'.$referenceOfPdf.'.pdf');
+            if( file_exists($createDirectory.'/'.esc_html($nameOfPdf).'.pdf') ) {
+                copy($createDirectory.'/'.esc_html($nameOfPdf).'.pdf', $createDirectory.'/'.esc_html($nameOfPdf).'-'.$referenceOfPdf.'.pdf');
             }
         }
 
     }
 
-    static function wpcf7pdf_create_csv($id, $nameOfPdf, $referenceOfPdf, $createDirectory, $preview = 0) {
+    static function wpcf7pdf_create_csv($idForm, $nameOfPdf, $referenceOfPdf, $createDirectory, $preview = 0) {
 
         // nothing's here... do nothing...
-        if (empty($id))
+        if (empty($idForm))
             return;
 
+        if( empty($referenceOfPdf) || $referenceOfPdf=='' && $preview==1 ) { $referenceOfPdf = '3F7A8B43EA2F'; }
+
         // Je vais chercher le tableau des tags
-        $csvTab = cf7_sendpdf::wpf7pdf_tagsparser($id);
+        $csvTab = cf7_sendpdf::wpf7pdf_tagsparser($idForm, $referenceOfPdf);
+
+        // On va chercher les paramètres
+        $meta_values = get_post_meta(esc_html($idForm), '_wp_cf7pdf', true);
+        
         // Je vais chercher la liste des tags pour l'entete du CSV
-        $meta_fields = get_post_meta(esc_html($id), '_wp_cf7pdf_fields', true);
+        $meta_fields = get_post_meta(esc_html($idForm), '_wp_cf7pdf_fields', true);
+        
+        // On va chercher les noms personnalisé
+        $meta_tagsname = get_post_meta(esc_html($idForm), '_wp_cf7pdf_customtagsname', true);
+
+        // Construction de l'entete
         if( isset($meta_fields) ) {
-            $entete = array("reference", "date");
+            
+            if( isset($meta_tagsname) && (isset($meta_tagsname['reference']) && $meta_tagsname['reference']!='') ) { 
+                $tag_reference = esc_html($meta_tagsname['reference']); 
+            } else { 
+                $tag_reference = "Reference"; 
+            }
+            if( isset($meta_tagsname) && (isset($meta_tagsname['date']) && $meta_tagsname['date']!='') ) { 
+                $tag_date = esc_html($meta_tagsname['date']); 
+            } else { 
+                $tag_date = "Date";
+            }
+            $entete = array( esc_html($tag_reference), esc_html($tag_date) );
+            
             foreach($meta_fields as $field) {
                 preg_match_all( '#\[(.*?)\]#', $field, $nameField );
                 $nb=count($nameField[1]);
-                for($i=0;$i<$nb;$i++) {
-                    array_push($entete, $nameField[1][$i]);
+                for($i=0;$i<$nb;$i++) {    
+
+                    $hiddenTag = 'hidden-'.esc_html($nameField[1][$i]);
+
+                    // si on cache des champs, on les retire de l'entete
+                    if( isset($meta_tagsname) && (isset($meta_tagsname[$nameField[1][$i]]) ) ) {
+
+                        if( isset($meta_tagsname[$hiddenTag]) && $meta_tagsname[$hiddenTag]==1 ) {
+                            $tagsName = ''; // si champ caché = tableau vide                          
+                        } else if ($meta_tagsname[$nameField[1][$i]]!='') {
+                            $tagsName = esc_html($meta_tagsname[$nameField[1][$i]]);
+                        }
+
+                    } else {                        
+                        $tagsName = esc_html($nameField[1][$i]);
+                    }
+                    if( isset($tagsName) && $tagsName!='') {
+                        array_push($entete, $tagsName);
+                    }
                 }
             }
         }
@@ -349,12 +401,16 @@ class WPCF7PDF_generate extends cf7_sendpdf {
         );
 
         if( isset($preview) && $preview == 1 ) {
-            $fpCsv = fopen($createDirectory.'/preview-'.esc_html($id).'.csv', 'w+'); /* phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fopen */
+            $fpCsv = fopen($createDirectory.'/preview-'.esc_html($idForm).'.csv', 'w+'); /* phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fopen */
         } else {
             $fpCsv = fopen($createDirectory.'/'.$nameOfPdf.'.csv', 'w+'); /* phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fopen */
         }
-        
+        //add BOM to fix UTF-8 in Excel
+        fputs($fpCsv, $bom =( chr(0xEF) . chr(0xBB) . chr(0xBF) ));
+
+        // On va chercher le séparateur défini en paramètres
         if( isset($meta_values["csv-separate"]) && !empty($meta_values["csv-separate"]) ) { $csvSeparate = esc_html($meta_values["csv-separate"]); } else { $csvSeparate = ','; }
+        
         foreach ($csvlist as $csvfields) {
             $csvfields = str_replace("<br />", " ", $csvfields);
             $csvfields = str_replace("\r\n", " ", $csvfields);
