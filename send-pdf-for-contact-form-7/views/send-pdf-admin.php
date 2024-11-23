@@ -284,7 +284,9 @@ jQuery(document).ready(function() {
             $messageText = WPCF7PDF_prepare::tags_parser($idForm, $nameOfPdf, '', $messageText, 0, 1);
             
             // Shortcodes?
-            $messageText = WPCF7PDF_prepare::shortcodes($meta_values['shotcodes_tags'], $messageText);    
+            if( isset($meta_values['shotcodes_tags']) && $meta_values['shotcodes_tags']!='') {
+                $messageText = WPCF7PDF_prepare::shortcodes($meta_values['shotcodes_tags'], $messageText);
+            }
 
             // Création du PDF
             $generatePdfFile = WPCF7PDF_generate::wpcf7pdf_create_pdf($idForm, $messageText, $nameOfPdf, '', $createDirectory, 1);
@@ -294,20 +296,22 @@ jQuery(document).ready(function() {
         // Si plusieurs PDF
         if( isset($meta_values["number-pdf"]) && $meta_values["number-pdf"]>1 ) {
 
-            for ($i = 2; $i <= $meta_values["number-pdf"]; $i++) {
+            for ($ipdf = 2; $ipdf <= $meta_values["number-pdf"]; $ipdf++) {
 
-                if( isset($meta_values['nameaddpdf'.$i]) && $meta_values['nameaddpdf'.$i]!='') {
+                if( isset($meta_values['nameaddpdf'.$ipdf]) && $meta_values['nameaddpdf'.$ipdf]!='') {
 
-                    $addNamePdf = sanitize_title($meta_values['nameaddpdf'.$i]);
+                    $addNamePdf = sanitize_title($meta_values['nameaddpdf'.$ipdf]);
 
                     // définit le contenu du PDf
-                    $messageAddPdf = wp_kses(trim($meta_values['content_addpdf_'.$i.'']), WPCF7PDF_prepare::wpcf7pdf_autorizeHtml());       
+                    $messageAddPdf = wp_kses(trim($meta_values['content_addpdf_'.$ipdf.'']), WPCF7PDF_prepare::wpcf7pdf_autorizeHtml());       
                     
                     // Preparation du contenu du PDF
                     $messageAddPdf = WPCF7PDF_prepare::tags_parser($idForm, $addNamePdf, '', $messageAddPdf, 0, 1);
                     
                     // Shortcodes?
-                    $messageAddPdf = WPCF7PDF_prepare::shortcodes($meta_values['shotcodes_tags'], $messageAddPdf);    
+                    if( isset($meta_values['shotcodes_tags']) && $meta_values['shotcodes_tags']!='') {
+                        $messageAddPdf = WPCF7PDF_prepare::shortcodes($meta_values['shotcodes_tags'], $messageAddPdf);
+                    }
 
                     // Création du PDF
                     $generateAddPdfFile = WPCF7PDF_generate::wpcf7pdf_create_pdf($idForm, $messageAddPdf, $addNamePdf, '', $createDirectory, 2);
@@ -414,10 +418,10 @@ if ( is_dir(get_stylesheet_directory()."/pdffonts/") == true ) {
                         <td style="text-align:left;">
                             <div>
                             <div class="switch-field">
-                                <input class="switch_left" type="radio" id="switch_insert" name="wp_cf7pdf_settings[condition-sending]" value="true" <?php if( isset($meta_values["condition-sending"]) && $meta_values["condition-sending"]=='true') { echo ' checked'; } ?>/>
-                                <label for="switch_insert"><?php esc_html_e('Yes', 'send-pdf-for-contact-form-7'); ?></label>
-                                <input class="switch_right" type="radio" id="switch_insert_no" name="wp_cf7pdf_settings[condition-sending]" value="false" <?php if( empty($meta_values["condition-sending"]) || (isset($meta_values["condition-tag"]) && $meta_values["condition-tag"]=='') || (isset($meta_values["condition-sending"]) && $meta_values["condition-sending"]=='false') ) { echo ' checked'; } ?> />
-                                <label for="switch_insert_no"><?php esc_html_e('No', 'send-pdf-for-contact-form-7'); ?></label>
+                                <input class="switch_left" type="radio" id="switch_condition" name="wp_cf7pdf_settings[condition-sending]" value="true" <?php if( isset($meta_values["condition-sending"]) && $meta_values["condition-sending"]=='true') { echo ' checked'; } ?>/>
+                                <label for="switch_condition"><?php esc_html_e('Yes', 'send-pdf-for-contact-form-7'); ?></label>
+                                <input class="switch_right" type="radio" id="switch_condition_no" name="wp_cf7pdf_settings[condition-sending]" value="false" <?php if( empty($meta_values["condition-sending"]) || (isset($meta_values["condition-tag"]) && $meta_values["condition-tag"]=='') || (isset($meta_values["condition-sending"]) && $meta_values["condition-sending"]=='false') ) { echo ' checked'; } ?> />
+                                <label for="switch_condition_no"><?php esc_html_e('No', 'send-pdf-for-contact-form-7'); ?></label>
                             </div>
                             </div>
                         </td>
