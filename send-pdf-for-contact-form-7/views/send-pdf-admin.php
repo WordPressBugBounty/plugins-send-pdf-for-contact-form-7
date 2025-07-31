@@ -7,6 +7,9 @@ global $_wp_admin_css_colors;
 global $post;
 
 $admin_color = get_user_option( 'admin_color', get_current_user_id() );
+if( !isset($_wp_admin_css_colors[$admin_color]) ) {
+    $admin_color = 'fresh'; // Default color scheme
+}
 $colors      = $_wp_admin_css_colors[$admin_color]->colors;
 
 $upload_dir = wp_upload_dir();
@@ -181,12 +184,13 @@ jQuery(document).ready(function() {
                                 $selected = '';
                                
                                 foreach($forms as $form) {
+                                    $is_selected = false;
                                     if(isset($_POST['idform']) ) {
-                                        $selected = ($form->id() == sanitize_text_field($_POST['idform'])) ? "selected" : "";
+                                        $is_selected = ($form->id() == sanitize_text_field($_POST['idform']));
                                     }
                                     $formPriority = '';
                                     $formNameEscaped = htmlentities($form->title(), ENT_QUOTES | ENT_IGNORE, 'UTF-8');
-                                    echo '<option value="'.esc_html($form->id()).'" '.esc_html($selected).'>'.esc_html($formNameEscaped).'</option>';
+                                    echo '<option value="'.esc_attr($form->id()).'"' . ($is_selected ? ' selected="selected"' : '') . '>'.esc_html($formNameEscaped).'</option>';
                                 }
                             ?>
                         </select>
@@ -524,7 +528,7 @@ if ( is_dir(get_stylesheet_directory()."/pdffonts/") == true ) {
                                     } else {
                                         $dateForName = get_option( 'date_format' );
                                     }
-                                    $dateForName = str_replace('-', '', $dateForName);
+                                    //$dateForName = str_replace('-', '', $dateForName);
                                     $dateForName = str_replace(' ', '', $dateForName);
                                     $dateForName = str_replace('/', '', $dateForName);
                                 ?>
@@ -533,7 +537,7 @@ if ( is_dir(get_stylesheet_directory()."/pdffonts/") == true ) {
 
                         </td>
                         <td>
-                            <input type= "text" class="wpcf7-form-field" name="wp_cf7pdf_settings[pdf-name]" value="<?php if( isset($meta_values["pdf-name"]) && !empty($meta_values["pdf-name"]) ) { echo esc_html(sanitize_title($meta_values["pdf-name"])); } else { echo esc_html('document-pdf'); } ?>">.pdf<br /><br /><br />
+                            <input type= "text" class="wpcf7-form-field" name="wp_cf7pdf_settings[pdf-name]" value="<?php if( isset($meta_values["pdf-name"]) && !empty($meta_values["pdf-name"]) ) { echo esc_html(str_replace(' ', '', $meta_values["pdf-name"])); } else { echo esc_html('document-pdf'); } ?>">.pdf<br /><br /><br />
                             <input type="text" class="wpcf7-form-field" size="30" name="wp_cf7pdf_settings[pdf-add-name]" value="<?php if( isset($meta_values["pdf-add-name"]) && !empty($meta_values["pdf-add-name"]) ) { echo esc_html($meta_values["pdf-add-name"]); } ?>" />
                         </td>
 
@@ -1511,14 +1515,14 @@ if ( is_dir(get_stylesheet_directory()."/pdffonts/") == true ) {
       <p><?php esc_html_e( 'Import the plugin settings from a .json file. This file can be obtained by exporting the settings on another site using the form above.', 'send-pdf-for-contact-form-7' ); ?></p>
       <form method="post" enctype="multipart/form-data">
           <p>
-              <input type="file" name="wpcf7_import_file"/>
+              <input type="file" name="wpcf7_import_file" id="wpcf7_import_file" onchange="validateImportForm()"/>
           </p>
           <p>
               <input type="hidden" name="wpcf7_action" value="import_settings" />
               <input type="hidden" name="idform" value="<?php echo esc_html($idForm); ?>"/>
               <input type="hidden" name="wpcf7pdf_import_id" value="<?php echo esc_html($idForm); ?>" />
               <?php wp_nonce_field( 'go_import_nonce', 'wpcf7_import_nonce' ); ?>
-              <?php submit_button( esc_html__( 'Import', 'send-pdf-for-contact-form-7' ), 'secondary', 'submit_import', false ); ?>
+              <p><?php submit_button( __( 'Import', 'send-pdf-for-contact-form-7' ), 'secondary', 'submit', false, array('id' => 'import-submit', 'disabled' => 'disabled') ); ?></p>
           </p>
       </form>
     </div>
@@ -1554,6 +1558,18 @@ if( isset($meta_values["number-pdf"]) && $meta_values["number-pdf"]>1 ) { ?>
     
 })(jQuery);
 <?php } ?>
+</script>
+<script type="text/javascript">
+function validateImportForm() {
+    var fileInput = document.getElementById('wpcf7_import_file');
+    var submitButton = document.getElementById('import-submit');
+    
+    if (fileInput.files.length > 0) {
+        submitButton.disabled = false;
+    } else {
+        submitButton.disabled = true;
+    }
+}
 </script>
 
 <?php } else { ?>
