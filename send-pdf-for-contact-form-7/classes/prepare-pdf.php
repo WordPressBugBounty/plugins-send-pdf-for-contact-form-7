@@ -730,7 +730,6 @@ class WPCF7PDF_prepare extends cf7_sendpdf {
 
                 $valueTag = wpcf7_mail_replace_tags(esc_html($name_tags[0]));
                 $inputCheckbox = '';
-                $i = 0;
                 $nb = count($contact_tag[$found_key]['values']);
                 $textFreeText = '';
 
@@ -763,22 +762,44 @@ class WPCF7PDF_prepare extends cf7_sendpdf {
 
                 } else {
 
+                    $valueTag = str_replace(' ', '', $valueTag);
                     $tabValueTag = explode(',', $valueTag);
                     $nb = count($contact_tag[$found_key]['values']);
+                    //error_log('nb: '.$nb.' - valueTag: '.sanitize_text_field($valueTag).' - tabValueTag: '.print_r($tabValueTag, true));
                     // Afficher la liste des noms des checkbox
-                    foreach( $contact_tag[$found_key]['values'] as $idCheckbox=>$valCheckbox ) {
-            
-                        // Si on affiche les input, checkbox et radio
-                        if (isset($meta_values['data_input']) && $meta_values['data_input']== 'true') {
+                    
+                    // Si on affiche les input, checkbox et radio
+                    if (isset($meta_values['data_input']) && $meta_values['data_input']== 'true') {
+
+                        $i = 0;
+
+                        if( isset($meta_values["empty_input"]) && $meta_values["empty_input"]=='true') {
+                            
+                            foreach( $tabValueTag as $idCheckbox=>$valCheckbox ) {
+
+                                if( ($nb-1) == $idCheckbox && (isset($_POST['_wpcf7_free_text_'.$name_tags[1]]) && $_POST['_wpcf7_free_text_'.$name_tags[1]]!='') ) {
+                                    $textFreeText = ' '.esc_html($_POST['_wpcf7_free_text_'.$name_tags[1]]);
+                                }
+
+                                if( in_array('label_first', $tagOptions) ) {
+                                    $inputCheckbox .= ''.$tagSeparate.''.esc_html($valCheckbox).''.esc_html($textFreeText).' <input type="checkbox" class="wpcf7-checkbox" name="text_'.esc_html($name_tags[1].$idCheckbox).'" value="'.$idCheckbox.'" checked="checked" /> '.$tagSeparateAfter.'';
+                                } else {
+                                    $inputCheckbox .= ''.$tagSeparate.'<input type="checkbox" class="wpcf7-checkbox" name="text_'.esc_html($name_tags[1].$idCheckbox).'" value="'.$idCheckbox.'" checked="checked" /> '.esc_html($valCheckbox).''.esc_html($textFreeText).''.$tagSeparateAfter.'';
+                                }
+                                $i++;
+
+                            }
+
+                        } else {
+
+                        foreach( $contact_tag[$found_key]['values'] as $idCheckbox=>$valCheckbox ) {
 
                             $caseChecked = '';
 
-                            if( sanitize_text_field($valueTag)===sanitize_text_field($valCheckbox) && (strcmp(sanitize_title($valueTag), sanitize_title($valCheckbox)) === 0 || strcmp(sanitize_title($valueTag), sanitize_title($idCheckbox)) === 1) ) {
+                            if( in_array( sanitize_text_field($valCheckbox), $tabValueTag ) ) {
                                 $caseChecked = 'checked="checked"';
-                            }
-                            if( in_array( $valCheckbox, $tabValueTag ) ) {
-                                $caseChecked = 'checked="checked"';
-                            }
+                            }                          
+                            
                             if( ($nb-1) == $idCheckbox && (isset($_POST['_wpcf7_free_text_'.$name_tags[1]]) && $_POST['_wpcf7_free_text_'.$name_tags[1]]!='') ) {
                                 $textFreeText = ' '.esc_html($_POST['_wpcf7_free_text_'.$name_tags[1]]);
                                 $caseChecked = 'checked="checked"';
@@ -789,22 +810,29 @@ class WPCF7PDF_prepare extends cf7_sendpdf {
                             } else {
                                 $inputCheckbox .= ''.$tagSeparate.'<input type="checkbox" class="wpcf7-checkbox" name="text_'.esc_html($name_tags[1].$idCheckbox).'" value="'.$idCheckbox.'" '.$caseChecked.' /> '.esc_html($valCheckbox).''.esc_html($textFreeText).''.$tagSeparateAfter.'';
                             }
+                            $i++;
+                        }
+                    }
+                        
 
-                        } else {
+                    } else {
+                        $i = 0;
+                        foreach( $tabValueTag as $idCheckbox=>$valCheckbox ) {
 
                             if( isset($_POST['_wpcf7_free_text_'.$name_tags[1]]) && $_POST['_wpcf7_free_text_'.$name_tags[1]]!='' ) {
                                 $textFreeText = ' '.esc_html($_POST['_wpcf7_free_text_'.$name_tags[1]]);
                                 $inputCheckbox = ''.$tagSeparate.''.esc_html($valueTag).''.$tagSeparateAfter.'';
                             }
-                            if( sanitize_text_field($valueTag)===sanitize_text_field($valCheckbox) && (strcmp(sanitize_title($valueTag), sanitize_title($valCheckbox)) === 0 || strcmp(sanitize_title($valueTag), sanitize_title($idCheckbox)) === 1) ) {
-                                $inputCheckbox .= ''.$tagSeparate.''.esc_html($valueTag).''.esc_html($textFreeText).''.$tagSeparateAfter.'';
-                            }
+                            //if( sanitize_text_field($valueTag)===sanitize_text_field($valCheckbox) && (strcmp(sanitize_title($valueTag), sanitize_title($valCheckbox)) === 0 || strcmp(sanitize_title($valueTag), sanitize_title($idCheckbox)) === 1) ) {
+                                $inputCheckbox .= ''.$tagSeparate.''.esc_html($valCheckbox).''.esc_html($textFreeText).''.$tagSeparateAfter.'';
+                            //}
                             //error_log('valueTag ('.$nb.') : '.sanitize_text_field($valueTag).' - valCheckbox: '.sanitize_text_field($valCheckbox).' - Return : '.strcmp(sanitize_title($valueTag), sanitize_title($valCheckbox)).' - idCheckbox: '.sanitize_text_field($idCheckbox));
+                            $i++;
                         }
                         
-                        $i++;
-
                     }
+                   
+                        
                 }
 
                 // Affiche la liste des valeurs retournées par le formulaire
