@@ -17,16 +17,20 @@ defined( 'ABSPATH' )
 class WPCF7PDF_generate extends cf7_sendpdf {
 
     static function wpcf7pdf_create_pdf($idForm, $data, $nameOfPdf, $referenceOfPdf, $createDirectory, $preview = 0) {
-
+        
         // nothing's here... do nothing...
         if (empty($idForm) || empty($data))
             return;
 
-        global $wp_session;
-
+        // Get upload directory
         $upload_dir = wp_upload_dir();
+        $upload_basedir = $upload_dir['basedir'];
+        $upload_baseurl = $upload_dir['baseurl'];
+
+        // Get custom temp path
         $custom_tmp_path = get_option('wpcf7pdf_path_temp');
 
+        // get instance of Contact Form 7
         $contact_form = WPCF7_ContactForm::get_instance(esc_html($idForm));   
 
         // Definition des dates par defaut
@@ -194,7 +198,21 @@ class WPCF7PDF_generate extends cf7_sendpdf {
             $mpdf->useActiveForms = true;
         }
         
-        if( isset($meta_values['image_background']) && $meta_values['image_background']!='' ) {
+        // Tester si les images de fond existent
+        $backgroundImage = '';
+        $backgroundImageDefault = esc_url(plugins_url('images/background.jpg', dirname(__FILE__) ));
+        if( isset($meta_values['image_background']) && $meta_values['image_background']!=$backgroundImageDefault ) {
+            $pathBackgroundImage = str_replace($upload_baseurl, $upload_basedir, $meta_values['image_background']);
+            if( file_exists($pathBackgroundImage) ) {
+                $backgroundImage = esc_url($meta_values['image_background']);
+            } else {
+                $backgroundImage = '';
+            }
+        } else if( isset($meta_values['image_background']) && $meta_values['image_background']==$backgroundImageDefault ) {
+            $backgroundImage = esc_url($meta_values['image_background']);
+        }
+
+        if( isset($backgroundImage) && $backgroundImage!='' ) {
             $mpdf->SetDefaultBodyCSS('background', "url('".esc_url($meta_values['image_background'])."')");
             $mpdf->SetDefaultBodyCSS('background-image-resize', 6);
         }
@@ -234,7 +252,7 @@ class WPCF7PDF_generate extends cf7_sendpdf {
         }
 
         $entetePage = '';
-        if( isset($meta_values["image"]) && !empty($meta_values["image"]) ) {
+        if( isset($meta_values["image"]) && !empty($meta_values["image"]) && file_exists( str_replace($upload_baseurl, $upload_basedir, $meta_values['image']) ) ) {
             if( ini_get('allow_url_fopen')==1) {
                 list($width, $height, $type, $attr) = getimagesize(esc_url($meta_values["image"]));
             } else {
@@ -319,12 +337,24 @@ class WPCF7PDF_generate extends cf7_sendpdf {
         } else {
 
             $data = wpcf7_mail_replace_tags( wpautop($data) );
-            $mpdf->Output($createDirectory.'/'.esc_html($nameOfPdf).'.pdf', 'F');
-            
-            // Je copy le PDF genere
-            if( file_exists($createDirectory.'/'.esc_html($nameOfPdf).'.pdf') ) {
-                copy($createDirectory.'/'.esc_html($nameOfPdf).'.pdf', $createDirectory.'/'.esc_html($nameOfPdf).'-'.$referenceOfPdf.'.pdf');
+            if ( isset($meta_values["pdf-forceref"]) && $meta_values["pdf-forceref"] == "true" ) {
+                $mpdf->Output($createDirectory.'/'.esc_html($nameOfPdf).'-'.$referenceOfPdf.'.pdf', 'F');
+            } else {
+                $mpdf->Output($createDirectory.'/'.esc_html($nameOfPdf).'.pdf', 'F');
             }
+
+            // Je copy le CSV genere
+            $sourceFile = $createDirectory . '/' . esc_html($nameOfPdf) . '.pdf';
+            $destFile = $createDirectory . '/' . esc_html($nameOfPdf) . '-' . $referenceOfPdf . '.pdf';
+            
+            // Conditions pour copier le fichier CSV
+            $fileExists = file_exists($sourceFile);
+            $databseDisabled = empty($meta_values["pdf-disable-insert"]) || $meta_values["pdf-disable-insert"] === "fasle";
+            
+            if( $fileExists && $databseDisabled ) {
+                copy($sourceFile, $destFile);
+            }
+
         }
 
     }
@@ -370,19 +400,19 @@ class WPCF7PDF_generate extends cf7_sendpdf {
                 for($i=0;$i<$nb;$i++) {    
 
                     $hiddenTag = 'hidden-'.esc_html($nameField[1][$i]);
-
                     // si on cache des champs, on les retire de l'entete
-                    if( isset($meta_tagsname) && (isset($meta_tagsname[$nameField[1][$i]]) ) ) {
-
-                        if( isset($meta_tagsname[$hiddenTag]) && $meta_tagsname[$hiddenTag]==1 ) {
-                            $tagsName = ''; // si champ caché = tableau vide                          
-                        } else if ($meta_tagsname[$nameField[1][$i]]!='') {
-                            $tagsName = esc_html($meta_tagsname[$nameField[1][$i]]);
-                        }
-
-                    } else {                        
+                    if( isset($meta_tagsname[$hiddenTag]) && $meta_tagsname[$hiddenTag]==1 ) {  
+                        $tagsName = '';
+                    }
+                    // Si un nom personnalisé existe, on l'utilise
+                    else if ($meta_tagsname[$nameField[1][$i]]!='') {                           
+                        $tagsName = esc_html($meta_tagsname[$nameField[1][$i]]);
+                    }
+                    // Sinon on garde le TAG par défaut
+                    else {                        
                         $tagsName = esc_html($nameField[1][$i]);
                     }
+                    // On crée l'entete du CSV
                     if( isset($tagsName) && $tagsName!='') {
                         array_push($entete, $tagsName);
                     }
@@ -398,7 +428,11 @@ class WPCF7PDF_generate extends cf7_sendpdf {
         if( isset($preview) && $preview == 1 ) {
             $fpCsv = fopen($createDirectory.'/preview-'.esc_html($idForm).'.csv', 'w+'); /* phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fopen */
         } else {
-            $fpCsv = fopen($createDirectory.'/'.$nameOfPdf.'.csv', 'w+'); /* phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fopen */
+            if ( isset($meta_values["pdf-forceref"]) && $meta_values["pdf-forceref"] == "true" ) {
+                $fpCsv = fopen($createDirectory.'/'.$nameOfPdf.'-'.$referenceOfPdf.'.csv', 'w+'); /* phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fopen */
+            } else { 
+                $fpCsv = fopen($createDirectory.'/'.$nameOfPdf.'.csv', 'w+'); /* phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fopen */
+            }
         }
         //add BOM to fix UTF-8 in Excel
         fputs($fpCsv, $bom =( chr(0xEF) . chr(0xBB) . chr(0xBF) ));
@@ -414,9 +448,17 @@ class WPCF7PDF_generate extends cf7_sendpdf {
         fclose($fpCsv); /* phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fclose */
 
         if( isset($preview) && $preview == 0 ) {
+
             // Je copy le CSV genere
-            if( file_exists($createDirectory.'/'.$nameOfPdf.'.csv') ) {
-                copy($createDirectory.'/'.$nameOfPdf.'.csv', $createDirectory.'/'.$nameOfPdf.'-'.$referenceOfPdf.'.csv');
+            $sourceFile = $createDirectory . '/' . esc_html($nameOfPdf) . '.csv';
+            $destFile = $createDirectory . '/' . esc_html($nameOfPdf) . '-' . $referenceOfPdf . '.csv';
+            
+            // Conditions pour copier le fichier CSV
+            $fileExists = file_exists($sourceFile);
+            $databseDisabled = empty($meta_values["pdf-disable-insert"]) || $meta_values["pdf-disable-insert"] === "false";
+            
+            if( $fileExists && $databseDisabled ) {
+                copy($sourceFile, $destFile);
             }
         }
         // END GENERATE CSV

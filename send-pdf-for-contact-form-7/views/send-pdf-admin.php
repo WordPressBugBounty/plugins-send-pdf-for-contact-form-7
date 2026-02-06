@@ -61,7 +61,11 @@ if( (isset($_POST['action']) && isset($_POST['idform']) && $_POST['action'] == '
             }
 
         }
-
+        
+        if ( isset($_POST["wp_cf7pdf_settings"]["pdf-uploads-customname"]) && !empty($_POST["wp_cf7pdf_settings"]["pdf-uploads-customname"]) ) {
+            $customName = sanitize_title($_POST["wp_cf7pdf_settings"]["pdf-uploads-customname"]);
+            $_POST["wp_cf7pdf_settings"]["pdf-uploads-customname"] = $customName;
+        }
         $updateSetting = WPCF7PDF_settings::update_settings(esc_html($_POST['idform']), $_POST["wp_cf7pdf_settings"], '_wp_cf7pdf');
 
         if ( isset($_POST["wp_cf7pdf_tags"]) ) {
@@ -73,6 +77,7 @@ if( (isset($_POST['action']) && isset($_POST['idform']) && $_POST['action'] == '
         if ( isset($_POST['wp_cf7pdf_custom_tags_name']) ) {
             $updateSettingTagsName = WPCF7PDF_settings::update_settings(esc_html($_POST['idform']), $_POST["wp_cf7pdf_custom_tags_name"], '_wp_cf7pdf_customtagsname');
         }
+        
         if( isset($updateSetting) && $updateSetting == true) {
             $options_saved = true;
             echo '<div id="message" class="updated fade"><p><strong>'.esc_html__('Options saved.', 'send-pdf-for-contact-form-7').'</strong></p></div>';
@@ -149,6 +154,24 @@ jQuery(document).ready(function() {
   });
   jQuery(".postbox").on('click', '.hndle', function(){
     jQuery(this).siblings(".inside").slideToggle();
+  });
+  
+  /* Toggle uploads folder name field based on pdf-uploads switch */
+  function toggleUploadsCustomName() {
+    var isUploadsEnabled = jQuery('#switch_uploads').is(':checked');
+    if (isUploadsEnabled) {
+      jQuery('#tr-pdf-uploads-customname').slideDown();
+    } else {
+      jQuery('#tr-pdf-uploads-customname').slideUp();
+    }
+  }
+  
+  // Initial state
+  toggleUploadsCustomName();
+  
+  // Listen to changes on the switch
+  jQuery('#switch_uploads, #switch_uploads_no').on('change', function() {
+    toggleUploadsCustomName();
   });
     
 });
@@ -248,6 +271,11 @@ jQuery(document).ready(function() {
         /**********************************************/
         // On récupère le dossier upload de WP
         $upload_dir = wp_upload_dir();
+        $upload_basedir = $upload_dir['basedir'];
+        $upload_baseurl = $upload_dir['baseurl'];
+        //print_r($upload_dir);
+
+        // On crée le dossier d'upload si il n'existe pas
         $createDirectory = cf7_sendpdf::wpcf7pdf_folder_uploads($idForm);
         
         // On récupère le format de date dans les paramètres
@@ -544,7 +572,23 @@ if ( is_dir(get_stylesheet_directory()."/pdffonts/") == true ) {
                     </tr>
                     <tr>
                         <td>
-                            <?php esc_html_e('Change uploads folder?', 'send-pdf-for-contact-form-7'); ?><p>(<i><?php if( isset($meta_values["pdf-uploads"]) && $meta_values["pdf-uploads"]=='true') { esc_html_e("Great ! Now the upload folder's path is /wp-content/uploads/sendpdfcf7_uploads/*ID_FORM*/", 'send-pdf-for-contact-form-7'); } else { esc_html_e("By default, the upload folder's path is /wp-content/uploads/*YEAR*/*MONTH*/", 'send-pdf-for-contact-form-7'); } ?></i>)</p>
+                            <?php esc_html_e('Force adding reference in name of PDF', 'send-pdf-for-contact-form-7'); ?><p>(<i><?php esc_html_e("By default, file's will be 'document-pdf.pdf', with this option, file's will be 'document-pdf-REFERENCE.pdf' and 'document-pdf-REFERENCE.csv' for email attachment or download.", 'send-pdf-for-contact-form-7'); ?></i>)</p>
+                        </td>
+                        <td>
+                            <div>
+                                <div class="switch-field">
+                                <input class="switch_left" type="radio" id="switch_forceref" name="wp_cf7pdf_settings[pdf-forceref]" value="true" <?php if( isset($meta_values["pdf-forceref"]) && $meta_values["pdf-forceref"]=='true') { echo ' checked'; } ?>/>
+                                <label for="switch_forceref"><?php esc_html_e('Yes', 'send-pdf-for-contact-form-7'); ?></label>
+                                <input class="switch_right" type="radio" id="switch_forceref_no" name="wp_cf7pdf_settings[pdf-forceref]" value="false" <?php if( empty($meta_values["pdf-forceref"]) || (isset($meta_values["pdf-forceref"]) && $meta_values["pdf-forceref"]=='false') ) { echo ' checked'; } ?> />
+                                <label for="switch_forceref_no"><?php esc_html_e('No', 'send-pdf-for-contact-form-7'); ?></label>
+                                </div>
+                            </div>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td>
+                            <?php esc_html_e('Change uploads folder?', 'send-pdf-for-contact-form-7'); ?><?php if( isset($meta_values["pdf-uploads-customname"]) && $meta_values["pdf-uploads-customname"]!='') { echo ''; } else { ?><p>(<i><?php if( isset($meta_values["pdf-uploads"]) && $meta_values["pdf-uploads"]=='true') { 
+                                printf(__("Great ! Now the upload folder's path is %s", 'send-pdf-for-contact-form-7'), '/wp-content/uploads/sendpdfcf7_uploads/'.esc_attr($idForm).'/'); } else { printf(__("By default, the upload folder's path is %s", 'send-pdf-for-contact-form-7'), '/wp-content/uploads/*YEAR*/*MONTH*/'); } ?></i>)</p><?php } ?>
                         </td>
                         <td>
                             <div>
@@ -555,6 +599,14 @@ if ( is_dir(get_stylesheet_directory()."/pdffonts/") == true ) {
                                 <label for="switch_uploads_no"><?php esc_html_e('No', 'send-pdf-for-contact-form-7'); ?></label>
                                 </div>
                             </div>
+                        </td>
+                    </tr>
+                    <tr id="tr-pdf-uploads-customname" style="display: <?php echo (isset($meta_values["pdf-uploads"]) && $meta_values["pdf-uploads"]=='true') ? 'table-row' : 'none'; ?>;">
+                        <td>
+                            <?php esc_html_e('Change uploads folder name?', 'send-pdf-for-contact-form-7'); ?><p>(<i><?php if( isset($meta_values["pdf-uploads-customname"]) && $meta_values["pdf-uploads-customname"]!='') { printf(__("Great ! Now the upload name's folder path is %s", 'send-pdf-for-contact-form-7'), '/wp-content/uploads/sendpdfcf7_uploads/'.esc_html($meta_values["pdf-uploads-customname"]).'/'); } else { printf(__("By default, the upload folder's path is %s", 'send-pdf-for-contact-form-7'), '/wp-content/uploads/'.esc_attr($idForm).'/'); } ?></i>)</p>
+                        </td>
+                        <td>
+                        <input type="text" name="wp_cf7pdf_settings[pdf-uploads-customname]" value="<?php if( isset($meta_values["pdf-uploads-customname"]) && !empty($meta_values["pdf-uploads-customname"]) ) { echo esc_html($meta_values["pdf-uploads-customname"]); } ?>" />
                         </td>
                     </tr>
                     <tr>
@@ -656,10 +708,11 @@ if ( is_dir(get_stylesheet_directory()."/pdffonts/") == true ) {
                         <td><!-- Propose la redirection vers le pdf direct -->
                             <?php esc_html_e('Redirects directly to the PDF after sending the form?', 'send-pdf-for-contact-form-7'); ?>
                             <p><i><?php esc_html_e( 'This option disable the Page Redirection selected', 'send-pdf-for-contact-form-7'); ?> (<?php esc_html_e( 'Except the popup window option', 'send-pdf-for-contact-form-7'); ?>)</i></p><?php if( (isset($meta_values["disable-insert"]) && $meta_values["disable-insert"]=='true') || (isset($meta_values["pdf-file-delete"]) && $meta_values["pdf-file-delete"]=='true') ) { ?><p><i style="color:#CC0000;">I can't redirect PDF file because the 'Disable data submit in a database?' option is activated.</i></p><?php } ?>
+                            <?php if( isset($meta_values["number-pdf"]) && $meta_values["number-pdf"]>1 ) { ?><p><i style="color:#CC0000;">I can't redirect PDF file because the 'Number of PDF' is > 1.</i></p><?php } ?>
                             <?php if( isset($idSelectPage) && $idSelectPage > 0) { ?><p><i style="color:#CC0000;">I can't redirect PDF file because you have choose a redirection page.</i></p><?php $meta_values["redirect-to-pdf"]='false'; ?><input type="hidden"  name="wp_cf7pdf_settings[redirect-to-pdf]" value="false" /><?php } ?>
                         </td>
                         <td>
-                            <?php if( (isset($meta_values["disable-insert"]) && $meta_values["disable-insert"]=='false') || (isset($meta_values["pdf-file-delete"]) && $meta_values["pdf-file-delete"]=='false') ) { ?>
+                            <?php if( ((isset($meta_values["disable-insert"]) && $meta_values["disable-insert"]=='false') || (isset($meta_values["pdf-file-delete"]) && $meta_values["pdf-file-delete"]=='false')) && (isset($meta_values["number-pdf"]) && $meta_values["number-pdf"]==1) ) { ?>
                                 <div>
                                     <div class="switch-field">
                                     <input class="switch_left" type="radio" id="switch_redirect" name="wp_cf7pdf_settings[redirect-to-pdf]" value="true" <?php if( isset($meta_values["redirect-to-pdf"]) && $meta_values["redirect-to-pdf"]=='true') { echo ' checked'; } ?>/>
@@ -988,7 +1041,7 @@ if ( is_dir(get_stylesheet_directory()."/pdffonts/") == true ) {
 
                             <h3 class="hndle"><span class="dashicons dashicons-images-alt2"></span>&nbsp;&nbsp;<?php esc_html_e('Image Background', 'send-pdf-for-contact-form-7'); ?></h3>
                             <?php esc_html_e('Enter a URL or upload an image:', 'send-pdf-for-contact-form-7'); ?><br />
-                            <input id="upload_background" size="80%" class="wpcf7-form-field" name="wp_cf7pdf_settings[image_background]" value="<?php if( isset($meta_values['image_background']) ) { echo esc_url($meta_values['image_background']); } ?>" type="text" /> <a href="#" id="upload_image_background" class="button" OnClick="this.blur();"><span> <?php esc_html_e('Select or Upload your picture', 'send-pdf-for-contact-form-7'); ?> </span></a><br /><small><?php esc_html_e('Example for demo:', 'send-pdf-for-contact-form-7'); ?> <a href="<?php echo esc_url(plugins_url( '../images/background.jpg', __FILE__ )); ?>" target="_blank"><?php esc_html_e('here', 'send-pdf-for-contact-form-7'); ?></a></small><br />
+                            <input id="upload_background" size="80%" class="wpcf7-form-field" name="wp_cf7pdf_settings[image_background]" value="<?php if( isset($meta_values['image_background']) && !empty($meta_values['image_background']) ) { echo esc_url($meta_values['image_background']); } ?>" type="text" /> <a href="#" id="upload_image_background" class="button" OnClick="this.blur();"><span> <?php esc_html_e('Select or Upload your picture', 'send-pdf-for-contact-form-7'); ?> </span></a><br /><small><?php esc_html_e('Example for demo:', 'send-pdf-for-contact-form-7'); ?> <a href="<?php echo esc_url(plugins_url( '../images/background.jpg', __FILE__ )); ?>" target="_blank"><?php esc_html_e('here', 'send-pdf-for-contact-form-7'); ?></a></small><br />
                             <div style="margin-top:0.8em;">                           
                                 <div><?php esc_html_e('Display background on each page?', 'send-pdf-for-contact-form-7'); ?>
                                     <div class="switch-field-mini">
@@ -1001,8 +1054,8 @@ if ( is_dir(get_stylesheet_directory()."/pdffonts/") == true ) {
                             </div>
                         </td>
                         <td style="text-align:center;">
-                            <div style="border:1px solid #CCCCCC;height:500px;padding:5px;<?php if( isset($meta_values['image_background']) ) { echo 'background: no-repeat url('.esc_url($meta_values['image_background']); } ?>);background-size: cover;">
-                                <div style="text-align:<?php if( isset($meta_values['image-alignment']) ) { echo esc_html($meta_values['image-alignment']); } ?>;margin-top:<?php if( isset($meta_values["margin_header"]) && $meta_values["margin_header"]!='' ) { echo esc_html($meta_values["margin_header"]); } else { echo esc_html($marginHeader); } ?>px;"><?php if( isset($meta_values['image']) ) { echo '<img src="'.esc_url($meta_values['image']).'" width="150">'; } ?>
+                            <div style="border:1px solid #CCCCCC;height:500px;padding:5px;<?php if( isset($meta_values['image_background']) && !empty($meta_values['image_background']) ) { echo 'background: no-repeat url('.esc_url($meta_values['image_background']); } ?>);background-size: cover;">
+                                <div style="text-align:<?php if( isset($meta_values['image-alignment']) ) { echo esc_html($meta_values['image-alignment']); } ?>;margin-top:<?php if( isset($meta_values["margin_header"]) && $meta_values["margin_header"]!='' ) { echo esc_html($meta_values["margin_header"]); } else { echo esc_html($marginHeader); } ?>px;"><?php if( isset($meta_values["image"]) && !empty($meta_values["image"]) && file_exists( str_replace($upload_baseurl, $upload_basedir, $meta_values['image'])) ) { echo '<img src="'.esc_url($meta_values['image']).'" width="150">'; } ?>
                                 </div>
                                 <?php
                                     
@@ -1188,6 +1241,7 @@ if ( is_dir(get_stylesheet_directory()."/pdffonts/") == true ) {
                                 </select><br />
                                 <?php esc_html_e("After:", 'send-pdf-for-contact-form-7'); ?><br />
                                 <select name="wp_cf7pdf_settings[separate_after]" class="wpcf7-form-field">
+                                    <option value="none" <?php if( empty($meta_values["separate_after"]) || (isset($meta_values["separate_after"]) && $meta_values["separate_after"] == 'none') ) { echo 'selected'; } ?>><?php esc_html_e("None", 'send-pdf-for-contact-form-7'); ?></option>
                                     <option value="comma" <?php if( isset($meta_values["separate_after"]) && $meta_values["separate_after"] == 'comma' ) { echo 'selected'; } ?>><?php esc_html_e("Comma", 'send-pdf-for-contact-form-7'); ?></option>
                                     <option value="space" <?php if( empty($meta_values["separate_after"]) || (isset($meta_values["separate_after"]) && $meta_values["separate_after"] == 'space') ) { echo 'selected'; } ?>><?php esc_html_e("Space", 'send-pdf-for-contact-form-7'); ?></option>
                                     <option value="linebreak" <?php if( isset($meta_values["separate_after"]) && $meta_values["separate_after"] == 'linebreak') { echo 'selected'; } ?>><?php esc_html_e("Line break", 'send-pdf-for-contact-form-7'); ?></option>                                    
@@ -1301,8 +1355,10 @@ if ( is_dir(get_stylesheet_directory()."/pdffonts/") == true ) {
                         for ($i = 2; $i <= $meta_values["number-pdf"]; $i++) {
 
                             // On évite le même nom du fichier, sinon message d'erreur
-                            $compareName[$i] = sanitize_title($meta_values['nameaddpdf'.$i.'']);
-                            $sameName = array_count_values($compareName);
+                            if( isset($meta_values['nameaddpdf'.$i]) ) { 
+                                $compareName[$i] = sanitize_title($meta_values['nameaddpdf'.$i.'']);
+                                $sameName = array_count_values($compareName);
+                            }
                            
                     ?>
                     <tr><td colspan="2"><hr style="background-color: <?php echo esc_html($colors[2]); ?>; height: 1px; border: 0;"></td></tr>
@@ -1312,7 +1368,7 @@ if ( is_dir(get_stylesheet_directory()."/pdffonts/") == true ) {
                             <div style="text-align:right;">
                                 <p>
                                     <input type="submit" name="wp_cf7pdf_update_settings" class="button-primary" value="<?php esc_html_e('Save settings', 'send-pdf-for-contact-form-7'); ?>"/>
-                                    <?php if( file_exists($createDirectory.'/preview-'.sanitize_title($meta_values['nameaddpdf'.$i.'']).'-'.esc_html($idForm).'.pdf') ) { ?>
+                                    <?php if( isset($meta_values['nameaddpdf'.$i]) && file_exists($createDirectory.'/preview-'.sanitize_title($meta_values['nameaddpdf'.$i.'']).'-'.esc_html($idForm).'.pdf') ) { ?>
                                         <a class="button button-secondary" target="_blank" href="<?php echo esc_url(str_replace($upload_dir['basedir'], $upload_dir['baseurl'], $createDirectory)).'/preview-'.sanitize_title($meta_values['nameaddpdf'.$i.'']).'-'.esc_html($idForm).'.pdf?ver='.esc_html(wp_rand()); ?>" ><?php esc_html_e('Preview your PDF', 'send-pdf-for-contact-form-7'); ?></a>
                                     <?php } ?>
                                 </p>
@@ -1322,7 +1378,7 @@ if ( is_dir(get_stylesheet_directory()."/pdffonts/") == true ) {
                     <tr>
                         <td colspan="2">                           
                             <i><?php echo esc_html__('Enter here the PDF name.', 'send-pdf-for-contact-form-7'); ?></i><br />
-                            <input type="text" class="wpcf7-form-field" value="<?php if( isset( $meta_values['nameaddpdf'.$i] ) ) { echo esc_html($meta_values['nameaddpdf'.$i]); } ?>" name="wp_cf7pdf_settings[nameaddpdf<?php echo esc_html($i); ?>]" ><span style="font-weight: bold;color: #CC0000;padding: 1.2em;"><?php if( $sameName[sanitize_title($meta_values['nameaddpdf'.$i.''])] >1 ) { esc_html_e('Error: this file name already exists!', 'send-pdf-for-contact-form-7'); } ?></span><br /><br />                                                 
+                            <input type="text" class="wpcf7-form-field" value="<?php if( isset( $meta_values['nameaddpdf'.$i] ) ) { echo esc_html($meta_values['nameaddpdf'.$i]); } ?>" name="wp_cf7pdf_settings[nameaddpdf<?php echo esc_html($i); ?>]" ><span style="font-weight: bold;color: #CC0000;padding: 1.2em;"><?php if( isset($meta_values['nameaddpdf'.$i]) && $sameName[sanitize_title($meta_values['nameaddpdf'.$i.''])] >1 ) { esc_html_e('Error: this file name already exists!', 'send-pdf-for-contact-form-7'); } ?></span><br /><br />                                                 
                             <textarea name="wp_cf7pdf_settings[content_addpdf_<?php echo esc_html($i); ?>]" id="wp_cf7pdf_pdf_<?php echo esc_html($i); ?>" cols=70 rows=24 class="widefat textarea"style="height:250px;"><?php if( isset($meta_values['content_addpdf_'.$i.'']) && !empty($meta_values['content_addpdf_'.$i.'']) ) { echo esc_textarea($meta_values['content_addpdf_'.$i.'']); } ?></textarea><br />
                             
                         </td>
@@ -1577,6 +1633,17 @@ function validateImportForm() {
         <?php /* translators: %s: lien vers Contact Form 7 */ printf( esc_html__('To work I need %s plugin, but it is apparently not installed or not enabled!', 'send-pdf-for-contact-form-7'), '<a href="https://wordpress.org/plugins/contact-form-7/" target="_blank">Contact Form 7</a>' ); ?>
     </div>
 <?php } ?>
+    <div style="margin-top:40px;padding:20px;background-color: #e3e1bb;border: 1px solid #848838;">
+        <h4><?php esc_html_e('Send PDF for Contact Form 7 is sponsorized by', 'send-pdf-for-contact-form-7'); ?></h4>
+        <table>
+            <tr>
+                <td><a href="https://www.jeremy-vaucher.com/" target="_blank"><img src="<?php echo esc_url(WPCF7PDF_URL.'images/logo-sponsor-jeremy.png'); ?>" alt="Jérémy Vaucher | Consultant SEO Annecy & Marketing Digital" title="Jérémy Vaucher | Consultant SEO Annecy & Marketing Digital" width="150" style="margin-right:20px;" /></a></td>
+                <td></td>
+                <td></td>
+                <td></td>
+            </tr>
+        </table>
+    </div>
     <div style="margin-top:40px;">
         <?php esc_html_e('Send PDF for Contact Form 7 is brought to you by', 'send-pdf-for-contact-form-7'); ?> <a href="https://madeby.restezconnectes.fr/" target="_blank">MadeByRestezConnectes</a> - <?php esc_html_e('If you found this plugin useful', 'send-pdf-for-contact-form-7'); ?> <a href="https://wordpress.org/support/view/plugin-reviews/send-pdf-for-contact-form-7/" target="_blank"><?php esc_html_e('give it 5 &#9733; on WordPress.org', 'send-pdf-for-contact-form-7'); ?></a>
     </div>
