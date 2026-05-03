@@ -375,9 +375,19 @@ class WPCF7PDF_generate extends cf7_sendpdf {
         
         // Je vais chercher la liste des tags pour l'entete du CSV
         $meta_fields = get_post_meta(esc_html($idForm), '_wp_cf7pdf_fields', true);
-        
+        if ( ! is_array( $meta_fields ) ) {
+            $meta_fields = array();
+        }
+
         // On va chercher les noms personnalisé
         $meta_tagsname = get_post_meta(esc_html($idForm), '_wp_cf7pdf_customtagsname', true);
+        // PHP 8+ : accès $meta_tagsname['cle'] sur une chaîne déclenche TypeError (meta corrompue, ancienne version, import).
+        if ( ! is_array( $meta_tagsname ) ) {
+            $meta_tagsname = array();
+        }
+
+        // Définition de l'entete
+        $entete = array();
 
         // Construction de l'entete
         if( isset($meta_fields) ) {
@@ -405,7 +415,7 @@ class WPCF7PDF_generate extends cf7_sendpdf {
                         $tagsName = '';
                     }
                     // Si un nom personnalisé existe, on l'utilise
-                    else if ($meta_tagsname[$nameField[1][$i]]!='') {                           
+                    else if ( isset($meta_tagsname[$nameField[1][$i]]) && $meta_tagsname[$nameField[1][$i]]!='') {                           
                         $tagsName = esc_html($meta_tagsname[$nameField[1][$i]]);
                     }
                     // Sinon on garde le TAG par défaut
